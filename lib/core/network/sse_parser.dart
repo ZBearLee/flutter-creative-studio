@@ -30,7 +30,11 @@ class SseParser {
     Stream<List<int>> byteStream,
   ) async* {
     // 字节流 → 字符流（UTF-8 解码）
-    final charStream = byteStream.transform(utf8.decoder);
+    // 注意：Dio 返回的流运行时是 Stream<Uint8List>，直接 transform(utf8.decoder)
+    // 会因 Dart 泛型协变在运行时抛 "type 'Utf8Decoder' is not a subtype"。
+    // 先 cast<List<int>>() 把运行时类型掰正再 transform。
+    final charStream =
+        byteStream.cast<List<int>>().transform(utf8.decoder);
 
     // 缓冲区：累积未消费的字符，处理跨 chunk 边界的事件
     final buffer = StringBuffer();

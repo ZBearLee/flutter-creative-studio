@@ -9,7 +9,7 @@ import 'app_exception.dart';
 /// 通用 Dio 客户端封装
 ///
 /// - 单例：全局一份 Dio，复用底层连接池
-/// - baseUrl：由调用方在构造时传入（DeepSeek / 硅基流动各一份）
+/// - baseUrl：由调用方在构造时传入（从 AppConfig 读取，零厂商耦合）
 /// - 拦截器：非 2xx 拒绝 + debug 日志
 /// - 流式响应：用 [streamSse] 方法，禁用接收超时（receiveTimeout = 0）
 ///

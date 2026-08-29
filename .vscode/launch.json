@@ -1,0 +1,20 @@
+{
+  // 调试启动配置
+  // API Key 已改走 .env 文件方案（运行时 flutter_dotenv 读取），无需 dart-define 注入。
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "flutter-creative-studio (Windows)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart"
+    },
+    {
+      "name": "flutter-creative-studio (Web)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "debug"
+    }
+  ]
+}
