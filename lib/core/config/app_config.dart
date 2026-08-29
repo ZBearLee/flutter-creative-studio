@@ -32,4 +32,19 @@ class AppConfig {
 
   /// Key 是否已配置（用于 UI 提示）
   static bool get hasLlmApiKey => llmApiKey.isNotEmpty;
+
+  // ---------- 文生图配置（同为中性命名，与 LLM 独立可指向不同服务） ----------
+
+  /// 文生图接口地址
+  static String get imageBaseUrl => _dotenv('IMAGE_BASE_URL') ?? '';
+
+  /// 文生图模型名
+  static String get imageModel => _dotenv('IMAGE_MODEL') ?? '';
+
+  /// 文生图 API 密钥
+  static String get imageApiKey => _dotenv('IMAGE_API_KEY') ?? '';
+
+  /// 文生图配置是否齐全
+  static bool get hasImageConfig =>
+      imageApiKey.isNotEmpty && imageBaseUrl.isNotEmpty && imageModel.isNotEmpty;
 }

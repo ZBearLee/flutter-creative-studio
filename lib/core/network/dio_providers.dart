@@ -13,3 +13,11 @@ final textGenDioClientProvider = Provider<DioClient>((ref) {
     apiKey: AppConfig.llmApiKey,
   );
 });
+
+/// 文生图用的 Dio 客户端（与 LLM 独立，可指向不同服务）
+final imageGenDioClientProvider = Provider<DioClient>((ref) {
+  return DioClient(
+    baseUrl: AppConfig.imageBaseUrl,
+    apiKey: AppConfig.imageApiKey,
+  );
+});
