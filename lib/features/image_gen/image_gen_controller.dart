@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/config/app_config.dart';
 import '../../core/network/app_exception.dart';
 import '../../core/network/dio_providers.dart';
+import '../settings/settings_controller.dart';
 import 'gallery_store.dart';
 import 'image_gen_state.dart';
 import 'image_style.dart';
@@ -41,7 +42,12 @@ class ImageGenController extends Notifier<ImageGenState> {
       return;
     }
 
-    if (!AppConfig.hasImageConfig) {
+    // 模型名优先用设置页的运行时覆盖值，回退 .env
+    final model = ref.read(settingsControllerProvider).effectiveImageModel;
+
+    if (AppConfig.imageApiKey.isEmpty ||
+        AppConfig.imageBaseUrl.isEmpty ||
+        model.isEmpty) {
       state = state.copyWith(
         error:
             '配置不完整，请在项目根 .env 文件中填写 '
@@ -59,7 +65,7 @@ class ImageGenController extends Notifier<ImageGenState> {
       // post 直接返回解析好的 Map（适配器差异已在网络层兜底）
       final resp = await client.post(
         '/images/generations',
-        body: {'model': AppConfig.imageModel, 'prompt': finalPrompt},
+        body: {'model': model, 'prompt': finalPrompt},
       );
       // OpenAI 兼容结构：{"data": [{"url": "..."}]}
       final dataList = resp['data'] as List?;

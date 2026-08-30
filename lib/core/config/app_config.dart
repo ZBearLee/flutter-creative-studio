@@ -43,8 +43,4 @@ class AppConfig {
 
   /// 文生图 API 密钥
   static String get imageApiKey => _dotenv('IMAGE_API_KEY') ?? '';
-
-  /// 文生图配置是否齐全
-  static bool get hasImageConfig =>
-      imageApiKey.isNotEmpty && imageBaseUrl.isNotEmpty && imageModel.isNotEmpty;
 }

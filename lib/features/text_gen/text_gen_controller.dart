@@ -6,6 +6,7 @@ import '../../core/network/app_exception.dart';
 import '../../core/network/dio_client.dart';
 import '../../core/network/dio_providers.dart';
 import '../../core/network/sse_parser.dart';
+import '../settings/settings_controller.dart';
 import 'prompt_template.dart';
 import 'text_history_store.dart';
 import 'text_gen_state.dart';
@@ -72,7 +73,11 @@ class TextGenController extends Notifier<TextGenState> {
       return;
     }
 
-    if (!AppConfig.hasLlmApiKey || AppConfig.llmModel.isEmpty) {
+    // 模型名优先用设置页的运行时覆盖值，回退 .env
+    final settings = ref.read(settingsControllerProvider);
+    final model = settings.effectiveLlmModel;
+
+    if (!AppConfig.hasLlmApiKey || model.isEmpty) {
       state = state.copyWith(
         error: '配置不完整，请在项目根 .env 文件中填写 '
             'LLM_API_KEY / LLM_MODEL / LLM_BASE_URL',
@@ -96,11 +101,13 @@ class TextGenController extends Notifier<TextGenState> {
       final resp = await _dioClient.streamSse(
         '/chat/completions',
         body: {
-          'model': AppConfig.llmModel,
+          'model': model,
           'messages': [
             {'role': 'user', 'content': finalPrompt}
           ],
           'stream': true,
+          // 温度：设置页运行时可调
+          'temperature': settings.temperature,
         },
         cancelToken: _cancelToken,
       );
