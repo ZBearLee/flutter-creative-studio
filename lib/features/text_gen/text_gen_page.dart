@@ -137,28 +137,95 @@ class _TemplateBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 52,
+      height: 48,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        // 首尾对称：左 16；右侧 = 列表末端 8 + chip 自带间距 8 = 16
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
           for (final t in PromptTemplate.values)
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                label: Text(t.label),
+              child: _TemplateChip(
+                label: t.label,
                 selected: selected?.id == t.id,
-                onSelected: (_) => onSelected(t),
-                labelStyle: TextStyle(
-                  color: selected?.id == t.id
-                      ? AppTheme.brand
-                      : AppTheme.inkSecondary,
-                  fontSize: 13,
-                  fontWeight: selected?.id == t.id ? FontWeight.w600 : null,
-                ),
+                onTap: () => onSelected(t),
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// 自绘示例标签（空态示例 prompt 用，与 _TemplateChip 同实现、无选中态）
+class _SampleChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _SampleChip({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppTheme.card,
+      shape: StadiumBorder(side: const BorderSide(color: AppTheme.line)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppTheme.inkSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 自绘模板标签（与绘画页 _StyleChip 同实现：不依赖 FilterChip，
+/// 其内部对短 label 的宽度计算在自定义主题下可能裁字）
+class _TemplateChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TemplateChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? const Color(0xFFEDEDFB) : AppTheme.card,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected ? AppTheme.brand : AppTheme.line,
+          width: selected ? 1.2 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          // 文字四周留足空间，短 label 也不会被切
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: selected ? AppTheme.brand : AppTheme.inkSecondary,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -220,26 +287,14 @@ class _OutputArea extends StatelessWidget {
                 style: TextStyle(fontSize: 13, color: AppTheme.inkTertiary),
               ),
               const SizedBox(height: 28),
-              // 示例 prompt
+              // 示例 prompt（自绘 chip，与模板条同视觉语言，无裁字问题）
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 alignment: WrapAlignment.center,
                 children: [
                   for (final s in _samplePrompts)
-                    ActionChip(
-                      label: Text(s),
-                      onPressed: () => onSampleTap(s),
-                      labelStyle: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.inkSecondary,
-                      ),
-                      backgroundColor: AppTheme.card,
-                      side: const BorderSide(color: AppTheme.line),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
+                    _SampleChip(label: s, onTap: () => onSampleTap(s)),
                 ],
               ),
             ],

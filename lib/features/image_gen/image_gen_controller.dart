@@ -39,14 +39,18 @@ class ImageGenController extends Notifier<ImageGenState> {
 
     try {
       final client = ref.read(imageGenDioClientProvider);
-      final resp = await client.post<Map<String, dynamic>>(
+      // post 直接返回解析好的 Map（适配器差异已在网络层兜底）
+      final resp = await client.post(
         '/images/generations',
         body: {'model': AppConfig.imageModel, 'prompt': finalPrompt},
       );
-
       // OpenAI 兼容结构：{"data": [{"url": "..."}]}
-      final dataList = resp.data?['data'] as List?;
-      final url = dataList?.firstOrNull?['url'] as String?;
+      final dataList = resp['data'] as List?;
+      // 服务端返回的 url 可能被反引号/换行等杂质包裹，
+      // 直接用正则提取干净的 URL（https:// 开头，到第一个空白/引号为止）
+      final rawUrl = dataList?.firstOrNull?['url'] as String? ?? '';
+      final url =
+          RegExp("https?://[^\\s'`]+").firstMatch(rawUrl)?.group(0);
       if (url == null || url.isEmpty) {
         throw const ApiException(message: '响应中没有图片数据');
       }

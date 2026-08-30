@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -66,7 +67,7 @@ class DioClient {
         PrettyDioLogger(
           requestHeader: true,
           requestBody: true,
-          responseBody: false, // 流式响应体过长，不打
+          responseBody: false, // SSE 流式请求不打 body；文生图问题已解决，关闭 body 日志
           responseHeader: false,
           error: true,
           compact: true,
@@ -77,7 +78,10 @@ class DioClient {
   }
 
   /// 普通业务请求（JSON in / JSON out）
-  Future<Response<T>> post<T>(
+  ///
+  /// 不用泛型解码（web XHR 适配器下泛型响应可能不被解析），
+  /// 统一拿 `Map<String, dynamic>`，由调用方取字段。
+  Future<Map<String, dynamic>> post(
     String path, {
     Object? body,
     Map<String, dynamic>? query,
@@ -85,15 +89,32 @@ class DioClient {
     CancelToken? cancelToken,
   }) async {
     try {
-      return await _dio.post<T>(
+      final resp = await _dio.post<dynamic>(
         path,
         data: body,
         queryParameters: query,
         options: options,
         cancelToken: cancelToken,
       );
+      final data = resp.data;
+      if (data is Map<String, dynamic>) return data;
+      // 兼容：响应体是 JSON 字符串（部分适配器不解码）时手动解析
+      if (data is String && data.isNotEmpty) {
+        final decoded = _tryJsonDecode(data);
+        if (decoded is Map<String, dynamic>) return decoded;
+      }
+      throw const ApiException(message: '响应格式异常');
     } on DioException catch (e) {
       throw _mapDioError(e);
+    }
+  }
+
+  /// 尝试把字符串按 JSON 解析，失败时返回 null
+  Object? _tryJsonDecode(String raw) {
+    try {
+      return jsonDecode(raw);
+    } on FormatException {
+      return null;
     }
   }
 

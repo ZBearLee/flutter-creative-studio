@@ -64,6 +64,7 @@ class AppTheme {
         bodyMedium: TextStyle(color: ink),
       ),
       // 全局 chip 样式（模板条用）
+      // padding：横向给足让文字不贴边，竖向收窄避免 Chip 被容器裁剪
       chipTheme: ChipThemeData(
         backgroundColor: card,
         selectedColor: const Color(0xFFEDEDFB),
@@ -72,7 +73,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         showCheckmark: false,
       ),
       snackBarTheme: SnackBarThemeData(
