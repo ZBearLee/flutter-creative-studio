@@ -1,9 +1,36 @@
 import 'prompt_template.dart';
 
+/// 一条文本生成历史（成功生成一次记一条，新在前）
+class TextHistoryItem {
+  /// 用户输入的原始 prompt
+  final String prompt;
+
+  /// 生成结果全文
+  final String output;
+
+  /// 当时使用的模板（null 表示未用模板）
+  final PromptTemplate? template;
+
+  /// 生成时间
+  final DateTime createdAt;
+
+  const TextHistoryItem({
+    required this.prompt,
+    required this.output,
+    this.template,
+    required this.createdAt,
+  });
+}
+
 /// 文本生成页状态
 ///
 /// 不可变：所有变更通过 [copyWith] 产生新实例，Riverpod 自动触发 UI 重建。
 class TextGenState {
+  /// 历史记录（新在前，由 [TextHistoryStore] 持久化，重启恢复）
+  final List<TextHistoryItem> history;
+
+  /// 正在查看的历史条目（null 表示不在"查看历史"模式）
+  final TextHistoryItem? viewingHistory;
   /// 用户输入的原始 prompt
   final String prompt;
 
@@ -25,6 +52,8 @@ class TextGenState {
   final PromptTemplate? selectedTemplate;
 
   const TextGenState({
+    this.history = const [],
+    this.viewingHistory,
     this.prompt = '',
     this.output = '',
     this.isLoading = false,
@@ -34,6 +63,8 @@ class TextGenState {
   });
 
   TextGenState copyWith({
+    List<TextHistoryItem>? history,
+    TextHistoryItem? viewingHistory,
     String? prompt,
     String? output,
     bool? isLoading,
@@ -41,8 +72,12 @@ class TextGenState {
     PromptTemplate? selectedTemplate,
     bool clearError = false,
     bool clearTemplate = false,
+    bool clearViewing = false,
   }) {
     return TextGenState(
+      history: history ?? this.history,
+      viewingHistory:
+          clearViewing ? null : (viewingHistory ?? this.viewingHistory),
       prompt: prompt ?? this.prompt,
       output: output ?? this.output,
       isLoading: isLoading ?? this.isLoading,

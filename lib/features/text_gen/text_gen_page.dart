@@ -129,6 +129,12 @@ class _TextGenPageState extends ConsumerState<TextGenPage> {
               state: state,
               scrollController: _scrollController,
               onSampleTap: _fillSample,
+              onViewHistory: (item) => ref
+                  .read(textGenControllerProvider.notifier)
+                  .viewHistory(item),
+              onCloseHistory: () => ref
+                  .read(textGenControllerProvider.notifier)
+                  .closeHistory(),
             ),
           ),
 
@@ -227,68 +233,245 @@ class _TemplateChip extends StatelessWidget {
   }
 }
 
-/// 输出区域：空态（带示例）/ 流式文本
+/// 输出区域。展示优先级：
+/// 1. 生成中 / 有当前输出 → 流式文本
+/// 2. 查看历史详情 → 单条历史全文（带返回）
+/// 3. 有历史 → 历史列表卡片
+/// 4. 空态（带示例）
 class _OutputArea extends StatelessWidget {
   final TextGenState state;
   final ScrollController scrollController;
   final ValueChanged<String> onSampleTap;
+  final ValueChanged<TextHistoryItem> onViewHistory;
+  final VoidCallback onCloseHistory;
 
   const _OutputArea({
     required this.state,
     required this.scrollController,
     required this.onSampleTap,
+    required this.onViewHistory,
+    required this.onCloseHistory,
   });
 
   @override
   Widget build(BuildContext context) {
-    // 空态：固定高内容盒（340）在视口居中（与绘画页同布局策略）。
+    // 1. 当前输出（流式）
+    if (state.isLoading || state.output.isNotEmpty) {
+      return SingleChildScrollView(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SelectableText(
+              state.output,
+              style: const TextStyle(
+                fontSize: 15,
+                height: 1.7,
+                color: AppTheme.ink,
+              ),
+            ),
+            if (state.isLoading)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: _BlinkingDot(),
+              ),
+          ],
+        ),
+      );
+    }
+
+    // 2. 历史详情
+    final viewing = state.viewingHistory;
+    if (viewing != null) {
+      return _HistoryDetail(item: viewing, onBack: onCloseHistory);
+    }
+
+    // 3. 历史列表
+    if (state.history.isNotEmpty) {
+      return ListView.builder(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+        itemCount: state.history.length,
+        itemBuilder: (_, i) => _HistoryCard(
+          item: state.history[i],
+          onTap: () => onViewHistory(state.history[i]),
+        ),
+      );
+    }
+
+    // 4. 空态：固定高内容盒（340）在视口居中（与绘画页同布局策略）。
     // 盒子高度恒定 → 图标/标题位置两页完全一致，且不随示例 chips
     // 换行行数变化；窗口过矮时内容可滚动。
-    if (state.output.isEmpty && !state.isLoading) {
-      return CustomScrollView(
-        slivers: [
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 340),
-                child: EmptyStateContent(
-                  icon: Icons.auto_awesome,
-                  title: '描述你的想法，AI 帮你写',
-                  subtitle: '选个风格模板，或直接输入内容',
-                  samples: _samplePrompts,
-                  onSampleTap: onSampleTap,
+    return CustomScrollView(
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 340),
+              child: EmptyStateContent(
+                icon: Icons.auto_awesome,
+                title: '描述你的想法，AI 帮你写',
+                subtitle: '选个风格模板，或直接输入内容',
+                samples: _samplePrompts,
+                onSampleTap: onSampleTap,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 历史卡片（一行：prompt 标题 + 时间；摘要两行）
+class _HistoryCard extends StatelessWidget {
+  final TextHistoryItem item;
+  final VoidCallback onTap;
+
+  const _HistoryCard({required this.item, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.prompt.isEmpty ? '（无标题）' : item.prompt,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.ink,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _formatTime(item.createdAt),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.inkTertiary,
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  item.output.replaceAll('\n', ' '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: AppTheme.inkSecondary,
+                  ),
+                ),
+                if (item.template != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    item.template!.label,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.brand,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 历史详情：顶部返回行 + prompt 标题 + 全文
+class _HistoryDetail extends StatelessWidget {
+  final TextHistoryItem item;
+  final VoidCallback onBack;
+
+  const _HistoryDetail({required this.item, required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(8, 8, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                iconSize: 20,
+                color: AppTheme.inkSecondary,
+                tooltip: '返回历史列表',
+                onPressed: onBack,
+              ),
+              Expanded(
+                child: Text(
+                  item.prompt.isEmpty ? '（无标题）' : item.prompt,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.ink,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _formatTime(item.createdAt),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.inkTertiary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: SelectableText(
+              item.output,
+              style: const TextStyle(
+                fontSize: 15,
+                height: 1.7,
+                color: AppTheme.ink,
               ),
             ),
           ),
         ],
-      );
-    }
-
-    return SingleChildScrollView(
-      controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SelectableText(
-            state.output,
-            style: const TextStyle(
-              fontSize: 15,
-              height: 1.7,
-              color: AppTheme.ink,
-            ),
-          ),
-          if (state.isLoading)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: _BlinkingDot(),
-            ),
-        ],
       ),
     );
   }
+}
+
+/// 相对时间（刚刚 / N 分钟前 / N 小时前 / 具体日期）
+String _formatTime(DateTime t) {
+  final diff = DateTime.now().difference(t);
+  if (diff.inMinutes < 1) return '刚刚';
+  if (diff.inMinutes < 60) return '${diff.inMinutes} 分钟前';
+  if (diff.inHours < 24) return '${diff.inHours} 小时前';
+  final mm = t.minute.toString().padLeft(2, '0');
+  return '${t.month}-${t.day} ${t.hour.toString().padLeft(2, '0')}:$mm';
 }
 
 /// 流式生成中的闪烁光标

@@ -7,6 +7,7 @@ import '../../core/network/dio_client.dart';
 import '../../core/network/dio_providers.dart';
 import '../../core/network/sse_parser.dart';
 import 'prompt_template.dart';
+import 'text_history_store.dart';
 import 'text_gen_state.dart';
 
 /// 文本生成控制器（Riverpod 2.x Notifier 写法，无需额外包）
@@ -22,7 +23,22 @@ class TextGenController extends Notifier<TextGenState> {
   CancelToken? _cancelToken;
 
   @override
-  TextGenState build() => const TextGenState();
+  TextGenState build() {
+    _restore();
+    return const TextGenState();
+  }
+
+  /// 启动时恢复历史（异步：不阻塞首帧渲染）
+  Future<void> _restore() async {
+    try {
+      final items = await ref.read(textHistoryStoreProvider).load();
+      if (items.isNotEmpty) {
+        state = state.copyWith(history: items);
+      }
+    } catch (_) {
+      // provider 已销毁等情况：恢复失败不影响启动
+    }
+  }
 
   /// 取 Dio 客户端（Notifier 内部通过 ref 访问）
   DioClient get _dioClient => ref.read(textGenDioClientProvider);
@@ -105,6 +121,18 @@ class TextGenController extends Notifier<TextGenState> {
       }
 
       state = state.copyWith(isLoading: false);
+
+      // 成功生成一条 → 记入历史（新在前）并持久化
+      final item = TextHistoryItem(
+        prompt: userPrompt,
+        output: state.output,
+        template: state.selectedTemplate,
+        createdAt: DateTime.now(),
+      );
+      final items = [item, ...state.history];
+      state = state.copyWith(history: items, clearViewing: true);
+      // 持久化（失败静默，不影响当前会话）
+      await ref.read(textHistoryStoreProvider).save(items);
     } on AppException catch (e) {
       state = state.copyWith(isLoading: false, error: e.message);
     } catch (e) {
@@ -126,10 +154,23 @@ class TextGenController extends Notifier<TextGenState> {
     }
   }
 
-  /// 清空输入 + 输出 + 错误
+  /// 清空输入 + 输出 + 历史（含本地持久化，与绘画页清空画廊同语义）
   void clear() {
     stop();
     state = const TextGenState();
+    ref.read(textHistoryStoreProvider).clear();
+  }
+
+  /// 查看某条历史（输出区切换为该条详情）
+  void viewHistory(TextHistoryItem item) {
+    state = state.copyWith(viewingHistory: item);
+  }
+
+  /// 退出历史详情，回到历史列表
+  void closeHistory() {
+    if (state.viewingHistory != null) {
+      state = state.copyWith(clearViewing: true);
+    }
   }
 }
 
