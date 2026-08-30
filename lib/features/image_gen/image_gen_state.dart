@@ -27,6 +27,7 @@ class ImageGenState {
     this.images = const [],
     this.isLoading = false,
     this.error,
+    this.errorToken = 0,
   });
 
   final String prompt;
@@ -40,6 +41,11 @@ class ImageGenState {
   final bool isLoading;
 
   final String? error;
+
+  /// 错误事件计数：每次设置新 error 时 +1。
+  /// UI 不能只比较 error 文字（同一错误连发两次不会触发提示），
+  /// 用 token 才能把"值变化"和"事件发生"区分开。
+  final int errorToken;
 
   ImageGenState copyWith({
     String? prompt,
@@ -55,6 +61,9 @@ class ImageGenState {
       images: images ?? this.images,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
+      errorToken: clearError
+          ? 0
+          : (error != null ? errorToken + 1 : errorToken),
     );
   }
 }

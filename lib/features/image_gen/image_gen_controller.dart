@@ -99,6 +99,13 @@ class ImageGenController extends Notifier<ImageGenState> {
     state = state.copyWith(selectedStyle: style);
   }
 
+  /// 重置风格选择（切走 Tab 时调用，回来不残留上次的选择）
+  void resetSelection() {
+    if (state.selectedStyle != ImageStyle.none) {
+      state = state.copyWith(selectedStyle: ImageStyle.none);
+    }
+  }
+
   void clearImages() {
     state = state.copyWith(images: const []);
     ref.read(galleryStoreProvider).clear();

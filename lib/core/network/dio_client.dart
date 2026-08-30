@@ -183,18 +183,24 @@ class DioClient {
         if (code == 401 || code == 403) {
           return const UnauthorizedException();
         }
-        // 尝试从响应体提取服务端错误信息
+        // 从响应体提取服务端错误信息。
+        // OpenAI 兼容结构：{"error": {"code": ..., "message": "..."}}，
+        // 部分服务也用顶层 {"message": ...}，两种都兼容。
         final data = e.response?.data;
+        final errorObj = data is Map && data['error'] is Map
+            ? data['error'] as Map
+            : (data is Map ? data : null);
+        final serverMsg = errorObj?['message'];
         String msg = '请求失败 ($code)';
-        if (data is Map && data['message'] is String) {
-          msg = data['message'] as String;
+        if (serverMsg is String && serverMsg.isNotEmpty) {
+          msg = serverMsg;
         } else if (data is String && data.isNotEmpty) {
           msg = data;
         }
         return ApiException(
           message: msg,
           statusCode: code,
-          errorCode: data is Map ? data['code']?.toString() : null,
+          errorCode: errorObj?['code']?.toString(),
         );
       case DioExceptionType.cancel:
         return const UnknownException('请求已取消');

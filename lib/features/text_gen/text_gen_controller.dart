@@ -39,6 +39,13 @@ class TextGenController extends Notifier<TextGenState> {
     );
   }
 
+  /// 重置模板选择（切走 Tab 时调用，回来不残留上次的选择）
+  void resetSelection() {
+    if (state.selectedTemplate != null) {
+      state = state.copyWith(clearTemplate: true);
+    }
+  }
+
   /// 发起生成（流式）
   Future<void> generate() async {
     if (state.isLoading) return;

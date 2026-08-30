@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_toast.dart';
+import '../../core/widgets/empty_state.dart';
 import 'prompt_template.dart';
 import 'text_gen_controller.dart';
 import 'text_gen_state.dart';
@@ -24,11 +26,15 @@ class TextGenPage extends ConsumerStatefulWidget {
 class _TextGenPageState extends ConsumerState<TextGenPage> {
   final _promptController = TextEditingController();
   final _scrollController = ScrollController();
+  // 模板条横向滚动控制器（切 Tab 后归零）
+  final _barController = ScrollController();
+  var _tabVisible = true;
 
   @override
   void dispose() {
     _promptController.dispose();
     _scrollController.dispose();
+    _barController.dispose();
     super.dispose();
   }
 
@@ -70,12 +76,25 @@ class _TextGenPageState extends ConsumerState<TextGenPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(textGenControllerProvider);
 
+    // Tab 切走感知：IndexedStack 非激活分支的 TickerMode 会被关闭，
+    // 检测到可见 → 不可见时重置模板选择 + 模板条滚动归零（切回来不残留）
+    final tabVisible = TickerMode.of(context);
+    if (_tabVisible && !tabVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(textGenControllerProvider.notifier).resetSelection();
+        if (_barController.hasClients) {
+          _barController.jumpTo(0);
+        }
+      });
+    }
+    _tabVisible = tabVisible;
+
     // 监听 state 变化：错误提示 + 输出滚动
     ref.listen<TextGenState>(textGenControllerProvider, (prev, next) {
-      if (next.error != null && next.error != prev?.error) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(next.error!)));
+      // 用 token 判断"新的错误事件"（同一错误连发两次文字不变，但 token 会变）
+      if (next.error != null && next.errorToken != prev?.errorToken) {
+        AppToast.show(context, next.error!);
       }
       if (next.output != prev?.output) {
         _scrollToBottom();
@@ -97,6 +116,7 @@ class _TextGenPageState extends ConsumerState<TextGenPage> {
         children: [
           // 模板选择条（横向滚动）
           _TemplateBar(
+            scrollController: _barController,
             selected: state.selectedTemplate,
             onSelected: (t) => ref
                 .read(textGenControllerProvider.notifier)
@@ -129,16 +149,22 @@ class _TextGenPageState extends ConsumerState<TextGenPage> {
 
 /// 模板横向选择条
 class _TemplateBar extends StatelessWidget {
+  final ScrollController? scrollController;
   final PromptTemplate? selected;
   final ValueChanged<PromptTemplate?> onSelected;
 
-  const _TemplateBar({required this.selected, required this.onSelected});
+  const _TemplateBar({
+    this.scrollController,
+    required this.selected,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 48,
       child: ListView(
+        controller: scrollController,
         scrollDirection: Axis.horizontal,
         // 首尾对称：左 16；右侧 = 列表末端 8 + chip 自带间距 8 = 16
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -153,36 +179,6 @@ class _TemplateBar extends StatelessWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-/// 自绘示例标签（空态示例 prompt 用，与 _TemplateChip 同实现、无选中态）
-class _SampleChip extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _SampleChip({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppTheme.card,
-      shape: StadiumBorder(side: const BorderSide(color: AppTheme.line)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppTheme.inkSecondary,
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -245,61 +241,28 @@ class _OutputArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 空态：插画感 + 示例 prompt
+    // 空态：固定高内容盒（340）在视口居中（与绘画页同布局策略）。
+    // 盒子高度恒定 → 图标/标题位置两页完全一致，且不随示例 chips
+    // 换行行数变化；窗口过矮时内容可滚动。
     if (state.output.isEmpty && !state.isLoading) {
-      return Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 渐变圆底图标
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFEDEDFB), Color(0xFFF7F7FA)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.auto_awesome,
-                  size: 40,
-                  color: AppTheme.brand,
+      return CustomScrollView(
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 340),
+                child: EmptyStateContent(
+                  icon: Icons.auto_awesome,
+                  title: '描述你的想法，AI 帮你写',
+                  subtitle: '选个风格模板，或直接输入内容',
+                  samples: _samplePrompts,
+                  onSampleTap: onSampleTap,
                 ),
               ),
-              const SizedBox(height: 20),
-              const Text(
-                '描述你的想法，AI 帮你写',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.ink,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                '选个风格模板，或直接输入内容',
-                style: TextStyle(fontSize: 13, color: AppTheme.inkTertiary),
-              ),
-              const SizedBox(height: 28),
-              // 示例 prompt（自绘 chip，与模板条同视觉语言，无裁字问题）
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  for (final s in _samplePrompts)
-                    _SampleChip(label: s, onTap: () => onSampleTap(s)),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       );
     }
 

@@ -16,6 +16,11 @@ class TextGenState {
   /// 错误信息（非 null 时 UI 显示 SnackBar 提示）
   final String? error;
 
+  /// 错误事件计数：每次设置新 error 时 +1。
+  /// UI 不能只比较 error 文字（同一错误连发两次不会触发提示），
+  /// 用 token 才能把"值变化"和"事件发生"区分开。
+  final int errorToken;
+
   /// 当前选中的模板（null 表示不使用模板，直接发原文）
   final PromptTemplate? selectedTemplate;
 
@@ -24,6 +29,7 @@ class TextGenState {
     this.output = '',
     this.isLoading = false,
     this.error,
+    this.errorToken = 0,
     this.selectedTemplate,
   });
 
@@ -41,6 +47,9 @@ class TextGenState {
       output: output ?? this.output,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
+      errorToken: clearError
+          ? 0
+          : (error != null ? errorToken + 1 : errorToken),
       selectedTemplate:
           clearTemplate ? null : (selectedTemplate ?? this.selectedTemplate),
     );

@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_toast.dart';
+import '../../core/widgets/empty_state.dart';
 import 'image_gen_controller.dart';
 import 'image_gen_state.dart';
 import 'image_style.dart';
@@ -63,10 +65,14 @@ class ImageGenPage extends ConsumerStatefulWidget {
 
 class _ImageGenPageState extends ConsumerState<ImageGenPage> {
   final _promptController = TextEditingController();
+  // 风格条横向滚动控制器（切 Tab 后归零）
+  final _barController = ScrollController();
+  var _tabVisible = true;
 
   @override
   void dispose() {
     _promptController.dispose();
+    _barController.dispose();
     super.dispose();
   }
 
@@ -102,11 +108,24 @@ class _ImageGenPageState extends ConsumerState<ImageGenPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(imageGenControllerProvider);
 
+    // Tab 切走感知：IndexedStack 非激活分支的 TickerMode 会被关闭，
+    // 检测到可见 → 不可见时重置风格选择 + 风格条滚动归零（切回来不残留）
+    final tabVisible = TickerMode.of(context);
+    if (_tabVisible && !tabVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(imageGenControllerProvider.notifier).resetSelection();
+        if (_barController.hasClients) {
+          _barController.jumpTo(0);
+        }
+      });
+    }
+    _tabVisible = tabVisible;
+
     ref.listen<ImageGenState>(imageGenControllerProvider, (prev, next) {
-      if (next.error != null && next.error != prev?.error) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(next.error!)));
+      // 用 token 判断"新的错误事件"（同一错误连发两次文字不变，但 token 会变）
+      if (next.error != null && next.errorToken != prev?.errorToken) {
+        AppToast.show(context, next.error!);
       }
     });
 
@@ -129,6 +148,7 @@ class _ImageGenPageState extends ConsumerState<ImageGenPage> {
         children: [
           // 风格选择条
           _StyleBar(
+            scrollController: _barController,
             selected: state.selectedStyle,
             onSelected: (s) =>
                 ref.read(imageGenControllerProvider.notifier).selectStyle(s),
@@ -160,16 +180,22 @@ class _ImageGenPageState extends ConsumerState<ImageGenPage> {
 
 /// 风格横向选择条
 class _StyleBar extends StatelessWidget {
+  final ScrollController? scrollController;
   final ImageStyle selected;
   final ValueChanged<ImageStyle> onSelected;
 
-  const _StyleBar({required this.selected, required this.onSelected});
+  const _StyleBar({
+    this.scrollController,
+    required this.selected,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 48,
       child: ListView(
+        controller: scrollController,
         scrollDirection: Axis.horizontal,
         // 首尾对称：左 16；右侧 = 列表末端 8 + chip 自带间距 8 = 16，
         // 拖到最右时最后一个 chip 与首个 chip 的留白一致
@@ -185,36 +211,6 @@ class _StyleBar extends StatelessWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-/// 自绘示例标签（空态示例 prompt 用，与 _StyleChip 同实现、无选中态）
-class _SampleChip extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _SampleChip({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppTheme.card,
-      shape: StadiumBorder(side: const BorderSide(color: AppTheme.line)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppTheme.inkSecondary,
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -277,60 +273,28 @@ class _Gallery extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 空态
+    // 空态：固定高内容盒（340）在视口居中（与文本页同布局策略）。
+    // 盒子高度恒定 → 图标/标题位置两页完全一致，且不随示例 chips
+    // 换行行数变化；窗口过矮时内容可滚动。
     if (state.images.isEmpty && !state.isLoading) {
-      return Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFFEDEDFB), Color(0xFFF7F7FA)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.palette_outlined,
-                  size: 34,
-                  color: AppTheme.brand,
+      return CustomScrollView(
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 340),
+                child: EmptyStateContent(
+                  icon: Icons.palette_outlined,
+                  title: '描述画面，AI 帮你画',
+                  subtitle: '选个风格，或直接输入描述',
+                  samples: _samplePrompts,
+                  onSampleTap: onSampleTap,
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                '描述画面，AI 帮你画',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.ink,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                '选个风格，或直接输入描述',
-                style: TextStyle(fontSize: 13, color: AppTheme.inkTertiary),
-              ),
-              const SizedBox(height: 20),
-              // 示例 prompt（自绘 chip，与风格条同视觉语言，无裁字问题）
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  for (final s in _samplePrompts)
-                    _SampleChip(label: s, onTap: () => onSampleTap(s)),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       );
     }
 
