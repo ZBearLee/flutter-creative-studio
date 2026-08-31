@@ -78,7 +78,7 @@ class _TextGenPageState extends ConsumerState<TextGenPage> {
 
     // Tab 切走感知：IndexedStack 非激活分支的 TickerMode 会被关闭，
     // 检测到可见 → 不可见时重置模板选择 + 模板条滚动归零（切回来不残留）
-    final tabVisible = TickerMode.of(context);
+    final tabVisible = TickerMode.valuesOf(context).enabled;
     if (_tabVisible && !tabVisible) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;

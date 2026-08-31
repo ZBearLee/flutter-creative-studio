@@ -1,5 +1,5 @@
 name: flutter_creative_studio
-description: "A new Flutter project."
+description: "AI 创作工坊：文本与图像生成。"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -53,6 +53,17 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  # 生成 Android / Web 应用图标（dart run flutter_launcher_icons）
+  flutter_launcher_icons: ^0.14.3
+
+# 应用图标生成配置（源图：tool/app_icon.png，重跑命令即可更新）
+flutter_launcher_icons:
+  image_path: "tool/app_icon.png"
+  android: true
+  web:
+    generate: true
+    background_color: "#FFFFFF"
+    theme_color: "#5B5BD6"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
