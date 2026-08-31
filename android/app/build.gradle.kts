@@ -7,7 +7,8 @@ plugins {
 android {
     namespace = "com.creativestudio.flutter_creative_studio"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // 不声明 ndkVersion：本项目插件均无原生 C++ 代码，声明了会强制 Gradle
+    // 安装对应版本 NDK（下载大且国内网络常超时）。将来引入需要 NDK 的插件时再加回。
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
