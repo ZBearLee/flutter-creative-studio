@@ -218,6 +218,12 @@ class TextGenController extends Notifier<TextGenState> {
       state = state.copyWith(clearViewing: true);
     }
   }
+
+  /// 从"当前输出"视图回到历史列表（清掉本次输出展示；生成中不可退）
+  void backToList() {
+    if (state.isLoading || state.output.isEmpty) return;
+    state = state.copyWith(output: '', clearViewing: true);
+  }
 }
 
 /// 文本生成控制器 Provider（Riverpod 2.x NotifierProvider）

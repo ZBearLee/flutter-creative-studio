@@ -139,6 +139,9 @@ class _TextGenPageState extends ConsumerState<TextGenPage> {
               onCloseHistory: () => ref
                   .read(textGenControllerProvider.notifier)
                   .closeHistory(),
+              onBackToList: () => ref
+                  .read(textGenControllerProvider.notifier)
+                  .backToList(),
             ),
           ),
 
@@ -248,6 +251,7 @@ class _OutputArea extends StatelessWidget {
   final ValueChanged<String> onSampleTap;
   final ValueChanged<TextHistoryItem> onViewHistory;
   final VoidCallback onCloseHistory;
+  final VoidCallback onBackToList;
 
   const _OutputArea({
     required this.state,
@@ -255,6 +259,7 @@ class _OutputArea extends StatelessWidget {
     required this.onSampleTap,
     required this.onViewHistory,
     required this.onCloseHistory,
+    required this.onBackToList,
   });
 
   @override
@@ -267,6 +272,44 @@ class _OutputArea extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 顶栏：本次生成完成后提供"回到历史列表"入口
+            //（生成中不显示：此刻退出没有意义，用停止按钮）
+            if (!state.isLoading && state.history.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Text(
+                      '本次生成',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.inkTertiary,
+                      ),
+                    ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: onBackToList,
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.list_rounded,
+                            size: 14,
+                            color: AppTheme.brand,
+                          ),
+                          SizedBox(width: 2),
+                          Text(
+                            '历史列表',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.brand,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             SelectableText(
               state.output,
               style: const TextStyle(

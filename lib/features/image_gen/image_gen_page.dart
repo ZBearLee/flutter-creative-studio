@@ -412,40 +412,68 @@ class _ImageCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: Image(
-                image: _imageProvider(image.url),
-                fit: BoxFit.cover,
-                // 图片下载期间的占位（URL 已到但字节还在传输）
-                frameBuilder: (context, child, frame, wasSync) {
-                  if (wasSync || frame != null) return child;
-                  return Container(
-                    color: const Color(0xFFEDEDFB),
-                    alignment: Alignment.center,
-                    child: const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  );
-                },
-                errorBuilder: (_, _, _) => Container(
-                  color: AppTheme.paper,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.all(8),
-                  child: kIsWeb
-                      ? const Text(
-                          '图片加载失败\n可点击卡片，右上角打开原图',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.inkTertiary,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.broken_image_outlined,
-                          color: AppTheme.inkTertiary,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image(
+                    image: _imageProvider(image.url),
+                    fit: BoxFit.cover,
+                    // 图片下载期间的占位（URL 已到但字节还在传输）
+                    frameBuilder: (context, child, frame, wasSync) {
+                      if (wasSync || frame != null) return child;
+                      return Container(
+                        color: const Color(0xFFEDEDFB),
+                        alignment: Alignment.center,
+                        child: const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                ),
+                      );
+                    },
+                    errorBuilder: (_, _, _) => Container(
+                      color: AppTheme.paper,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.all(8),
+                      child: kIsWeb
+                          ? const Text(
+                              '图片加载失败\n可点击卡片，右上角打开原图',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.inkTertiary,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.broken_image_outlined,
+                              color: AppTheme.inkTertiary,
+                            ),
+                    ),
+                  ),
+                  // 左上角风格徽标（选了风格才显示）
+                  if (image.style != ImageStyle.none)
+                    Positioned(
+                      left: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          image.style.label,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
             Padding(
