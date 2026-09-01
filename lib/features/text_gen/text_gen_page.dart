@@ -54,8 +54,12 @@ class _TextGenPageState extends ConsumerState<TextGenPage> {
     final state = ref.read(textGenControllerProvider);
     if (state.isLoading) return;
     FocusScope.of(context).unfocus(); // 收起键盘
+    // 先取输入框文本再清空（clear() 不触发 onChanged，state.prompt
+    // 会残留旧值，导致空输入框仍能重发上次请求——prompt 必须显式传）
+    final text = _promptController.text;
     _promptController.clear(); // 发送后清空输入框
-    ref.read(textGenControllerProvider.notifier).generate();
+    ref.read(textGenControllerProvider.notifier).updatePrompt('');
+    ref.read(textGenControllerProvider.notifier).generate(text);
   }
 
   void _onStop() {

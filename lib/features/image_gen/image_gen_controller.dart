@@ -33,10 +33,12 @@ class ImageGenController extends Notifier<ImageGenState> {
     }
   }
 
-  Future<void> generate() async {
+  /// 发起生成。prompt 由页面显式传入（发送时输入框会被清空，而
+  /// clear() 不触发 onChanged，state.prompt 可能残留旧值——不能从 state 读）
+  Future<void> generate(String rawPrompt) async {
     if (state.isLoading) return;
 
-    final prompt = state.prompt.trim();
+    final prompt = rawPrompt.trim();
     if (prompt.isEmpty) {
       state = state.copyWith(error: '请输入画面描述');
       return;

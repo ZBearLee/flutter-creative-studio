@@ -23,9 +23,18 @@ class TextGenController extends Notifier<TextGenState> {
   /// 当前请求的取消令牌；null 表示无进行中的请求
   CancelToken? _cancelToken;
 
+  /// 历史恢复 Future：generate() 开头必须 await 它。
+  /// 否则恢复完成前发起生成，state.history 还是空的，
+  /// 生成完成 save 会用 [单条] 覆盖存储 → 旧历史丢失（竞态 bug）。
+  Future<void>? _restoreFuture;
+
+  /// 用户主动停止标志：区分"停止"与"出错"。
+  /// 停止时已流式输出的半截内容照常记入历史，且不弹错误提示。
+  bool _userStopped = false;
+
   @override
   TextGenState build() {
-    _restore();
+    _restoreFuture = _restore();
     return const TextGenState();
   }
 
@@ -64,10 +73,19 @@ class TextGenController extends Notifier<TextGenState> {
   }
 
   /// 发起生成（流式）
-  Future<void> generate() async {
+  ///
+  /// prompt 由页面显式传入（发送时输入框会被清空，而 clear() 不触发
+  /// onChanged，state.prompt 可能残留旧值——不能从 state 里读）
+  Future<void> generate(String rawPrompt) async {
     if (state.isLoading) return;
 
-    final userPrompt = state.prompt.trim();
+    // 等历史恢复完成再继续：防止用空 history 覆盖存储（竞态修复）
+    await _restoreFuture;
+    if (state.isLoading) return; // await 期间可能已被别处触发
+
+    _userStopped = false;
+
+    final userPrompt = rawPrompt.trim();
     if (userPrompt.isEmpty) {
       state = state.copyWith(error: '请输入内容');
       return;
@@ -128,32 +146,53 @@ class TextGenController extends Notifier<TextGenState> {
       }
 
       state = state.copyWith(isLoading: false);
-
       // 成功生成一条 → 记入历史（新在前）并持久化
-      final item = TextHistoryItem(
-        prompt: userPrompt,
-        output: state.output,
-        template: state.selectedTemplate,
-        createdAt: DateTime.now(),
-      );
-      final items = [item, ...state.history];
-      state = state.copyWith(history: items, clearViewing: true);
-      // 持久化（失败静默，不影响当前会话）
-      await ref.read(textHistoryStoreProvider).save(items);
+      await _recordHistory(userPrompt);
     } on AppException catch (e) {
-      state = state.copyWith(isLoading: false, error: e.message);
+      if (_userStopped) {
+        // 用户主动停止：不报错，已生成的半截内容照常记入历史
+        state = state.copyWith(isLoading: false, clearError: true);
+        await _recordHistory(userPrompt);
+      } else {
+        state = state.copyWith(isLoading: false, error: e.message);
+      }
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: '生成失败：$e',
-      );
+      // 流被取消时异常可能从原始字节流直接抛出（未经 AppException 映射），
+      // 用户主动停止同样不报错、保留半截输出
+      if (_userStopped) {
+        state = state.copyWith(isLoading: false, clearError: true);
+        await _recordHistory(userPrompt);
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          error: '生成失败：$e',
+        );
+      }
     } finally {
       _cancelToken = null;
     }
   }
 
+  /// 把当前输出记入历史（新在前）并持久化。
+  /// 成功完成与用户主动停止（保留半截输出）两条路径共用。
+  /// 输出为空（如停止时一个字还没出）则不记录。
+  Future<void> _recordHistory(String userPrompt) async {
+    if (state.output.isEmpty) return;
+    final item = TextHistoryItem(
+      prompt: userPrompt,
+      output: state.output,
+      template: state.selectedTemplate,
+      createdAt: DateTime.now(),
+    );
+    final items = [item, ...state.history];
+    state = state.copyWith(history: items, clearViewing: true);
+    // 持久化（失败静默，不影响当前会话）
+    await ref.read(textHistoryStoreProvider).save(items);
+  }
+
   /// 停止生成
   void stop() {
+    _userStopped = true;
     _cancelToken?.cancel('用户主动停止');
     _cancelToken = null;
     if (state.isLoading) {

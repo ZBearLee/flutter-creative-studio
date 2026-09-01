@@ -79,8 +79,12 @@ class _ImageGenPageState extends ConsumerState<ImageGenPage> {
   void _onGenerate() {
     if (ref.read(imageGenControllerProvider).isLoading) return;
     FocusScope.of(context).unfocus();
+    // 先取输入框文本再清空（clear() 不触发 onChanged，state.prompt
+    // 会残留旧值，导致空输入框仍能重发上次请求——prompt 必须显式传）
+    final text = _promptController.text;
     _promptController.clear();
-    ref.read(imageGenControllerProvider.notifier).generate();
+    ref.read(imageGenControllerProvider.notifier).updatePrompt('');
+    ref.read(imageGenControllerProvider.notifier).generate(text);
   }
 
   void _fillSample(String sample) {
