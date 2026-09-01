@@ -52,3 +52,7 @@ app.*.map.json
 # 环境变量.env不进 git）
 .env
 .env.*
+
+# Android 签名密钥（口令文件 + keystore 本体，均不进仓库）
+android/key.properties
+*.jks

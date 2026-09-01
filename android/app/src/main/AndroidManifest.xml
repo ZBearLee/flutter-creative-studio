@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 网络访问权限：release 构建必须在主 Manifest 声明
+         （debug 构建由 src/debug/AndroidManifest.xml 自动附带，release 不合并） -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="AI 创作工坊"
         android:name="${applicationName}"

@@ -547,7 +547,9 @@ class _InputCard extends StatelessWidget {
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        // 垂直居中：单行时按钮与文字中心对齐；多行时按钮随内容居中
+        // （原 end 对齐在单行状态下文字与按钮中心错位，移动端更明显）
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: TextField(
